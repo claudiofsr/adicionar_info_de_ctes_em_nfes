@@ -39,8 +39,13 @@ fn run() -> SpedResult<()> {
 
     // 1. Configurações (Parâmetros da CLI) (O "O QUE" fazer)
     let config = get_config()?;
+
     clear_screen(config.clear)?;
     imprimir_versao_do_programa();
+
+    if config.exibir_config {
+        println!("{:#?}\n", config);
+    }
 
     // 2. Informações (O "COM O QUE" trabalhar)
     // Toda a complexidade de arquivos texto e transitividade está escondida aqui
@@ -48,10 +53,6 @@ fn run() -> SpedResult<()> {
         "cte_nfes.txt",
         "transporte_subcontratado-chaves_complementares_dos_CTes.txt",
     )?;
-
-    if config.exibir_config {
-        println!("{:#?}\n", config);
-    }
 
     // 3. Processamento (A execução propriamente dita)
     println!("--- Passagem 1: Coletando resumos de documentos ---");
