@@ -102,4 +102,14 @@ fn test_notacao_cientifica() {
         mock_colunas_com_valor("1.23e4").get_valor_do_item(),
         Some(12300.0)
     );
+
+    assert_eq!(
+        mock_colunas_com_valor("4.3e10").get_valor_do_item(),
+        Some(43000000000.0)
+    );
+
+    assert_eq!(
+        mock_colunas_com_valor("-3.6e2").get_valor_do_item(),
+        Some(-360.0)
+    );
 }
