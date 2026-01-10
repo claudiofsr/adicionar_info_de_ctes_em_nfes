@@ -408,7 +408,7 @@ pub fn sobrescrever_arquivo(original: &Path, alterado: &Path) -> SpedResult<()> 
 /// Utiliza a Abordagem 1: Deserialização direta para a struct Colunas.
 pub fn enriquecer_arquivo(
     config: &Config,
-    info: &Informacoes,
+    info: &mut Informacoes,
     cte_info: &HashMap<Chave, DocSummary>,
     nfe_info: &HashMap<Chave, DocSummary>,
 ) -> SpedResult<(PathBuf, usize)> {
@@ -446,6 +446,8 @@ pub fn enriquecer_arquivo(
     let mut record = csv::StringRecord::new();
 
     while rdr.read_record(&mut record)? {
+        info.numero_total_de_linhas += 1;
+
         // Deserialização "Zero-Copy": os campos da struct Colunas aponta para dentro do 'record'
         let mut row: Colunas = record
             .deserialize(None)

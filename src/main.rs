@@ -49,7 +49,7 @@ fn run() -> SpedResult<()> {
 
     // 2. Informações (O "COM O QUE" trabalhar)
     // Toda a complexidade de arquivos texto e transitividade está escondida aqui
-    let info = Informacoes::carregar(
+    let mut info = Informacoes::carregar(
         "cte_nfes.txt",
         "transporte_subcontratado-chaves_complementares_dos_CTes.txt",
     )?;
@@ -71,7 +71,10 @@ fn run() -> SpedResult<()> {
     }
 
     // 8. Passagem 2: Enriquecimento
-    let (output_path, alteracoes) = enriquecer_arquivo(&config, &info, &cte_info, &nfe_info)?;
+    let (output_path, alteracoes) = enriquecer_arquivo(&config, &mut info, &cte_info, &nfe_info)?;
+
+    println!("Arquivo: {:?}", output_path.display());
+    println!("Número total de linhas: {}", info.numero_total_de_linhas);
 
     // 9. Finalização
     timer.print_elapsed_time();

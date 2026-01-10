@@ -5,6 +5,13 @@ const NUN_DIGITOS: usize = 44;
 #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Chave([u8; NUN_DIGITOS]);
 
+impl Default for Chave {
+    fn default() -> Self {
+        // Inicializa o array de 44 bytes com zeros
+        Chave([0u8; NUN_DIGITOS])
+    }
+}
+
 impl Chave {
     // Dica de Performance: Essa implementação de Chave::new é Zero-Allocation
     // no sentido de que ela não cria uma String intermediária (Heap).

@@ -5,10 +5,12 @@ use crate::{
 use std::collections::{HashMap, HashSet};
 
 // O estado (os HashMaps) deve ser uma struct separada ou variáveis no main
+#[derive(Debug, Default)]
 pub struct Informacoes {
     pub nfe_ctes: HashMap<Chave, HashSet<Chave>>,
     pub cte_nfes: HashMap<Chave, HashSet<Chave>>,
     pub cte_complementar: HashMap<Chave, HashSet<Chave>>,
+    pub numero_total_de_linhas: usize,
 }
 
 impl Informacoes {
@@ -45,6 +47,7 @@ impl Informacoes {
             nfe_ctes,
             cte_nfes,
             cte_complementar,
+            numero_total_de_linhas: 0,
         })
     }
 }

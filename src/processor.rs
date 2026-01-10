@@ -1,4 +1,7 @@
-use crate::{Chave, Colunas, Config, Informacoes, SpedError, SpedResult, fmt_milhares};
+use crate::{
+    Chave, Colunas, Config, CteMetadata, Informacoes, NfeMetadata, SpedError, SpedResult,
+    fmt_milhares,
+};
 use csv::{ReaderBuilder, StringRecord};
 use rayon::prelude::*;
 use std::{
@@ -19,6 +22,14 @@ pub fn f64_to_str(valor: f64) -> String {
     format!("{:.2}", valor.abs())
 }
 
+// O Enum não precisa de Default porque ele é usado dentro de um Option
+// Mas é boa prática manter Debug e Clone
+#[derive(Debug, Clone)]
+pub enum DocMetadata {
+    Cte(Box<CteMetadata<'static>>),
+    Nfe(Box<NfeMetadata<'static>>),
+}
+
 /// Armazena:
 /// - linha do item de maior valor da chave;
 /// - número de itens (considera apenas o itens de valores não nulos);
@@ -29,32 +40,21 @@ pub struct DocSummary {
     pub num_de_itens: usize,
     pub item_valor_total: f64,
     pub item_valor_maximo: f64,
-    /// Armazena a linha inteira do item de maior valor da chave.
-    /// O Box garante que o DocSummary ocupe pouco espaço na stack do HashMap.
-    pub colunas_max: Option<Box<Colunas<'static>>>, // Linha vencedora deve ser persistente
+    pub metadata: Option<DocMetadata>,
 }
 
 impl DocSummary {
-    /// Combina dois resumos. Usado para unir os resultados de diferentes threads.
+    /// Combina dois resumos. Usado para unir os resultados de diferentes threads (Rayon).
     pub fn merge(&mut self, other: Self) {
         self.num_de_itens += other.num_de_itens;
         self.item_valor_total += other.item_valor_total;
 
+        // Se o valor do outro resumo for estritamente maior,
+        // substituímos o metadado vencedor.
         if other.item_valor_maximo > self.item_valor_maximo {
             self.item_valor_maximo = other.item_valor_maximo;
-            self.colunas_max = other.colunas_max;
+            self.metadata = other.metadata;
         }
-    }
-
-    /// Helper para mover o valor no merge sem clones
-    pub fn merge_move(mut self, other: Self) -> Self {
-        self.num_de_itens += other.num_de_itens;
-        self.item_valor_total += other.item_valor_total;
-        if other.item_valor_maximo > self.item_valor_maximo {
-            self.item_valor_maximo = other.item_valor_maximo;
-            self.colunas_max = other.colunas_max;
-        }
-        self
     }
 }
 
@@ -123,7 +123,7 @@ pub fn get_summaries_parallel(
             |mut acc, result| -> SpedResult<SummaryPair> {
                 let record: StringRecord = result.map_err(SpedError::Csv)?;
 
-                // Deserialização (Tarefa pesada de CPU - feita em paralelo)
+                // Deserialização com captura detalhada de erro
                 let mut row: Colunas =
                     record
                         .deserialize(None)
@@ -170,15 +170,24 @@ pub fn get_summaries_parallel(
                 // Atualiza se:
                 // a) For o primeiro item encontrado (is_none)
                 // b) OU (o item atual tem valor estritamente maior que o máximo anterior)
-                if entry.colunas_max.is_none() || valor > entry.item_valor_maximo {
+                if entry.metadata.is_none() || valor > entry.item_valor_maximo {
                     entry.item_valor_maximo = valor;
 
-                    // Sanitização pesada apenas na linha vencedora para poupar CPU
-                    // Aqui limpamos campos que costumam ter espaços múltiplos no SPED
-                    Colunas::sanitizar_campo(&mut row.descricao_mercadoria);
+                    // Sanitização Lazy: Limpa apenas o que vai ser guardado na RAM
+                    if chave.is_nfe() {
+                        Colunas::sanitizar_campo(&mut row.descricao_mercadoria);
 
-                    // Otimização: Move a struct inteira para o Heap dentro do Box
-                    entry.colunas_max = Some(Box::new(row.into_owned()));
+                        // Guarda apenas os 10 campos da NF-e, descartando o resto da linha
+                        entry.metadata =
+                            Some(DocMetadata::Nfe(Box::new(row.extrair_nfe_metadata())));
+                    } else {
+                        Colunas::sanitizar_campo(&mut row.descricao_natureza);
+                        Colunas::sanitizar_campo(&mut row.observacoes_gerais);
+
+                        // Guarda apenas os 16 campos do CT-e, descartando o resto da linha
+                        entry.metadata =
+                            Some(DocMetadata::Cte(Box::new(row.extrair_cte_metadata())));
+                    }
                 }
 
                 Ok(acc)
@@ -282,19 +291,22 @@ pub fn get_summaries(
         // Atualiza se:
         // a) For o primeiro item encontrado (is_none)
         // b) OU (o item atual tem valor estritamente maior que o máximo anterior)
-        if entry.colunas_max.is_none() || valor > entry.item_valor_maximo {
+        if entry.metadata.is_none() || valor > entry.item_valor_maximo {
             entry.item_valor_maximo = valor;
 
-            // Opcional: Sanitização "Lazy" (apenas no item vencedor)
-            // Sanitizar strings apenas da linha "vencedora" para economizar CPU
-            // Aqui limpamos campos que costumam ter espaços duplos no SPED
+            // Sanitização Lazy: Limpa apenas o que vai ser guardado na RAM
+            if chave.is_nfe() {
+                Colunas::sanitizar_campo(&mut row.descricao_mercadoria);
 
-            // Sanitização pesada apenas na linha vencedora para poupar CPU
-            // Aqui limpamos campos que costumam ter espaços múltiplos no SPED
-            Colunas::sanitizar_campo(&mut row.descricao_mercadoria);
+                // Guarda apenas os 10 campos da NF-e, descartando o resto da linha
+                entry.metadata = Some(DocMetadata::Nfe(Box::new(row.extrair_nfe_metadata())));
+            } else {
+                Colunas::sanitizar_campo(&mut row.descricao_natureza);
+                Colunas::sanitizar_campo(&mut row.observacoes_gerais);
 
-            // Convertemos a linha Borrowed para Owned antes de colocar no Box
-            entry.colunas_max = Some(Box::new(row.into_owned()));
+                // Guarda apenas os 16 campos do CT-e, descartando o resto da linha
+                entry.metadata = Some(DocMetadata::Cte(Box::new(row.extrair_cte_metadata())));
+            }
         }
     }
 
@@ -314,23 +326,23 @@ pub fn get_summaries(
 
 /// Adiciona informações de CT-es relacionados diretamente na struct Colunas da NF-e.
 ///
-/// Abordagem: Type-safe, sem uso de índices ou header_maps.
+/// Abordagem: Type-safe, extraindo metadados específicos do enum DocMetadata.
 pub fn adicionar_info_de_ctes_em_nfe(
     row_nfe: &mut Colunas,
     config: &Config,
     info: &Informacoes,
     cte_info: &HashMap<Chave, DocSummary>,
 ) {
-    // 1. A chave da NFe já está dentro da própria struct row_nfe
+    // 1. A chave da NFe é obtida da própria struct
     let chave_nfe = row_nfe.chave;
 
-    // 2. Busca os CT-es relacionados à esta NF-e
+    // 2. Busca os CT-es relacionados à esta NF-e no índice de transitividade
     let Some(ctes_relacionados) = info.nfe_ctes.get(&chave_nfe) else {
-        // row_nfe.chave_de_acesso = format!("NFe: {}, 0 CTe: [] de valor total = 0", chave_nfe);
+        // row_nfe.chave_de_acesso = format!("NFe: {}, 0 CTe: [] de valor total = 0", chave_nfe).into();
         return;
     };
 
-    // 3. Filtra apenas CT-es que possuem resumo (Passagem 1)
+    // 3. Filtra CT-es que possuem resumo e mapeia para referências
     let mut valid_ctes: Vec<(&Chave, &DocSummary)> = ctes_relacionados
         .iter()
         .filter_map(|c| cte_info.get(c).map(|info| (c, info)))
@@ -340,7 +352,7 @@ pub fn adicionar_info_de_ctes_em_nfe(
         return;
     }
 
-    // 4. Ordenação (Paridade com Perl):
+    // 4. Ordenação:
     // 1º Valor Máximo (Desc), 2º Valor Total (Desc), 3º Chave (Asc)
     valid_ctes.sort_unstable_by(|a, b| {
         b.1.item_valor_maximo
@@ -354,7 +366,7 @@ pub fn adicionar_info_de_ctes_em_nfe(
             .then_with(|| a.0.cmp(b.0))
     });
 
-    // 5. Cálculos para o texto da célula de "Chave de Acesso"
+    // 5. Formatação da string de resumo para a coluna "Chave de Acesso"
     let soma_total: f64 = valid_ctes.iter().map(|c| c.1.item_valor_total).sum();
     let lista_chaves = valid_ctes
         .iter()
@@ -375,12 +387,12 @@ pub fn adicionar_info_de_ctes_em_nfe(
     )
     .into();
 
-    // 7. Injeção de Metadados (Informações Complementares, 16 colunas)
-    // Pegamos os metadados dos 'N' maiores CT-es (definido por config.max_info)
+    // 7. Injeção de Metadados (As 16 colunas do CT-e injetadas na NF-e)
+    // take(config.max_info) limita a quantidade de documentos cujos dados serão concatenados
     for (_, summary) in valid_ctes.iter().take(config.max_info) {
-        // 'c' é o Box<Colunas> que representa o item de valor máximo do CT-e vencedor
-        if let Some(c) = &summary.colunas_max {
-            // Utilizamos o método centralizado no Config
+        // Pattern match para garantir que estamos extraindo metadados de CT-e
+        if let Some(DocMetadata::Cte(c)) = &summary.metadata {
+            // Os campos de destino agora estão dentro de row_nfe
             config.append(&mut row_nfe.remetente_cnpj1, &c.remetente_cnpj1, "CT-e");
             config.append(&mut row_nfe.remetente_cnpj2, &c.remetente_cnpj2, "CT-e");
             config.append(&mut row_nfe.tomador_papel1, &c.tomador_papel1, "CT-e");
@@ -419,12 +431,12 @@ pub fn adicionar_info_de_nfes_em_cte(
 ) {
     let chave_cte = row_cte.chave;
 
-    // 1. Busca as NF-es relacionadas a este CT-e
+    // 1. Busca as NF-es relacionadas a este CT-e no índice de transitividade
     let Some(nfes_relacionadas) = info.cte_nfes.get(&chave_cte) else {
         return;
     };
 
-    // 2. Filtra NF-es com resumo válido e ordena (Valor Max Desc, Valor Total Desc, Chave Asc)
+    // 2. Filtra NF-es que possuem resumo válido e mapeia para referências
     let mut valid_nfes: Vec<(&Chave, &DocSummary)> = nfes_relacionadas
         .iter()
         .filter_map(|n| nfe_info.get(n).map(|info| (n, info)))
@@ -434,7 +446,8 @@ pub fn adicionar_info_de_nfes_em_cte(
         return;
     }
 
-    // Ordenação: Valor Max (Desc), Valor Total (Desc), Chave (Asc)
+    // 3. Ordenação (Paridade com Perl):
+    // 1º Valor Máximo (Desc), 2º Valor Total (Desc), 3º Chave (Asc)
     valid_nfes.sort_unstable_by(|a, b| {
         b.1.item_valor_maximo
             .partial_cmp(&a.1.item_valor_maximo)
@@ -447,7 +460,7 @@ pub fn adicionar_info_de_nfes_em_cte(
             .then_with(|| a.0.cmp(b.0))
     });
 
-    // 3. Atualiza o cabeçalho da célula "Chave de Acesso"
+    // 4. Atualiza o cabeçalho da célula "Chave de Acesso"
     let soma_total: f64 = valid_nfes.iter().map(|n| n.1.item_valor_total).sum();
     let lista_chaves = valid_nfes
         .iter()
@@ -467,9 +480,11 @@ pub fn adicionar_info_de_nfes_em_cte(
     )
     .into();
 
-    // 4. Injeção dos metadados das NF-es (10 colunas, limitado a config.max_info)
+    // 5. Injeção dos metadados das NF-es (10 colunas específicas)
     for (_, summary) in valid_nfes.iter().take(config.max_info) {
-        if let Some(n) = &summary.colunas_max {
+        // Pattern match para extrair especificamente os metadados de NF-e
+        if let Some(DocMetadata::Nfe(n)) = &summary.metadata {
+            // As 10 colunas de destino estão agora agrupadas em row_cte
             config.append(&mut row_cte.contribuinte_nome, &n.contribuinte_nome, "NF-e");
             config.append(&mut row_cte.participante_nome, &n.participante_nome, "NF-e");
             config.append(&mut row_cte.observacoes, &n.observacoes, "NF-e");
@@ -481,7 +496,7 @@ pub fn adicionar_info_de_nfes_em_cte(
                 "NF-e",
             );
 
-            // Lógica Especial: Código NCM Sobrescreve (Overwrite) se for válido
+            // Lógica Especial de NCM: Overwrite (Sobrescrever) se o NCM da NF-e for válido.
             if n.ncm_valido() {
                 row_cte.ncm = n.ncm.clone();
             }

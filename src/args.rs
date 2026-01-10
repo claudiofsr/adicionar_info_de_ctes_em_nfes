@@ -44,7 +44,7 @@ struct Arguments {
     verbose: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Config {
     pub atualizar_origem: bool,
     pub clear: bool,
