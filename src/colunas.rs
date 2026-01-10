@@ -2,101 +2,6 @@ use crate::{Chave, RE_MULTISPACE};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
-// --- 16 Colunas que o CT-e fornece para a NF-e ---
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
-pub struct CteMetadata<'a> {
-    #[serde(
-        rename = "CTe - Remetente das mercadorias transportadas: CNPJ/CPF de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
-    )]
-    pub remetente_cnpj1: Cow<'a, str>,
-    #[serde(
-        rename = "CTe - Remetente das mercadorias transportadas: CNPJ/CPF de Conhecimento : ConhecimentoInformacaoNFe"
-    )]
-    pub remetente_cnpj2: Cow<'a, str>,
-    #[serde(
-        rename = "Descrição CTe - Indicador do 'papel' do tomador do serviço de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
-    )]
-    pub tomador_papel1: Cow<'a, str>,
-    #[serde(
-        rename = "Descrição CTe - Indicador do 'papel' do tomador do serviço de Conhecimento : ConhecimentoInformacaoNFe"
-    )]
-    pub tomador_papel2: Cow<'a, str>,
-    #[serde(
-        rename = "CTe - Outro tipo de Tomador: CNPJ/CPF de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
-    )]
-    pub tomador_cnpj1: Cow<'a, str>,
-    #[serde(
-        rename = "CTe - Outro tipo de Tomador: CNPJ/CPF de Conhecimento : ConhecimentoInformacaoNFe"
-    )]
-    pub tomador_cnpj2: Cow<'a, str>,
-    #[serde(
-        rename = "CTe - UF do início da prestação de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
-    )]
-    pub inicio_estado: Cow<'a, str>,
-    #[serde(
-        rename = "CTe - Nome do Município do início da prestação de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
-    )]
-    pub inicio_municipio: Cow<'a, str>,
-    #[serde(
-        rename = "CTe - UF do término da prestação de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
-    )]
-    pub termino_estado: Cow<'a, str>,
-    #[serde(
-        rename = "CTe - Nome do Município do término da prestação de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
-    )]
-    pub termino_municipio: Cow<'a, str>,
-    #[serde(
-        rename = "CTe - Informações do Destinatário do CT-e: CNPJ/CPF de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
-    )]
-    pub destinatario_cnpj: Cow<'a, str>,
-    #[serde(
-        rename = "CTe - Informações do Destinatário do CT-e: Nome de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
-    )]
-    pub destinatario_nome: Cow<'a, str>,
-    #[serde(
-        rename = "CTe - Local de Entrega constante na Nota Fiscal: Nome de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
-    )]
-    pub local_entrega: Cow<'a, str>,
-    #[serde(rename = "Descrição da Natureza da Operação : NF Item (Todos)")]
-    pub descricao_natureza: Cow<'a, str>,
-    #[serde(rename = "CTe - Observações Gerais de Conhecimento : ConhecimentoInformacaoNFe")]
-    pub observacoes_gerais: Cow<'a, str>,
-    #[serde(rename = "Descrição CFOP : NF Item (Todos)")]
-    pub descricao_cfop: Cow<'a, str>,
-}
-
-// --- 10 Colunas que a NF-e fornece para o CT-e ---
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
-pub struct NfeMetadata<'a> {
-    #[serde(rename = "Nome do Contribuinte : NF Item (Todos)")]
-    pub contribuinte_nome: Cow<'a, str>,
-    #[serde(rename = "Nome do Participante : NF (Todos)")]
-    pub participante_nome: Cow<'a, str>,
-    #[serde(rename = "Observações : NF (Todos)")]
-    pub observacoes: Cow<'a, str>,
-    #[serde(rename = "Número da DI : NF Item (Todos)")]
-    pub numero_di: Cow<'a, str>,
-    #[serde(rename = "Descrição CFOP : NF Item (Todos)")]
-    // CFOP é comum, mas o valor pode ser diferente
-    pub descricao_cfop: Cow<'a, str>,
-    #[serde(rename = "Descrição da Mercadoria/Serviço : NF Item (Todos)")]
-    pub descricao_mercadoria: Cow<'a, str>,
-    #[serde(rename = "Código NCM : NF Item (Todos)")]
-    pub ncm: Cow<'a, str>,
-    #[serde(rename = "Descrição NCM : NF Item (Todos)")]
-    pub descricao_ncm: Cow<'a, str>,
-    #[serde(rename = "CST COFINS Descrição : NF Item (Todos)")]
-    pub cst_descricao_cofins: Cow<'a, str>,
-    #[serde(rename = "CST PIS Descrição : NF Item (Todos)")]
-    pub cst_descricao_pis: Cow<'a, str>,
-}
-
-impl<'a> NfeMetadata<'a> {
-    pub fn ncm_valido(&self) -> bool {
-        self.ncm.bytes().any(|b| matches!(b, b'1'..=b'9'))
-    }
-}
-
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct Colunas<'a> {
     // --- Identificação do Contribuinte e Participante ---
@@ -426,6 +331,101 @@ impl<'a> Colunas<'a> {
             cst_descricao_cofins: Cow::Owned(self.cst_descricao_cofins.to_string()),
             cst_descricao_pis: Cow::Owned(self.cst_descricao_pis.to_string()),
         }
+    }
+}
+
+// --- 16 Colunas que o CT-e fornece para a NF-e ---
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct CteMetadata<'a> {
+    #[serde(
+        rename = "CTe - Remetente das mercadorias transportadas: CNPJ/CPF de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
+    )]
+    pub remetente_cnpj1: Cow<'a, str>,
+    #[serde(
+        rename = "CTe - Remetente das mercadorias transportadas: CNPJ/CPF de Conhecimento : ConhecimentoInformacaoNFe"
+    )]
+    pub remetente_cnpj2: Cow<'a, str>,
+    #[serde(
+        rename = "Descrição CTe - Indicador do 'papel' do tomador do serviço de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
+    )]
+    pub tomador_papel1: Cow<'a, str>,
+    #[serde(
+        rename = "Descrição CTe - Indicador do 'papel' do tomador do serviço de Conhecimento : ConhecimentoInformacaoNFe"
+    )]
+    pub tomador_papel2: Cow<'a, str>,
+    #[serde(
+        rename = "CTe - Outro tipo de Tomador: CNPJ/CPF de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
+    )]
+    pub tomador_cnpj1: Cow<'a, str>,
+    #[serde(
+        rename = "CTe - Outro tipo de Tomador: CNPJ/CPF de Conhecimento : ConhecimentoInformacaoNFe"
+    )]
+    pub tomador_cnpj2: Cow<'a, str>,
+    #[serde(
+        rename = "CTe - UF do início da prestação de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
+    )]
+    pub inicio_estado: Cow<'a, str>,
+    #[serde(
+        rename = "CTe - Nome do Município do início da prestação de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
+    )]
+    pub inicio_municipio: Cow<'a, str>,
+    #[serde(
+        rename = "CTe - UF do término da prestação de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
+    )]
+    pub termino_estado: Cow<'a, str>,
+    #[serde(
+        rename = "CTe - Nome do Município do término da prestação de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
+    )]
+    pub termino_municipio: Cow<'a, str>,
+    #[serde(
+        rename = "CTe - Informações do Destinatário do CT-e: CNPJ/CPF de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
+    )]
+    pub destinatario_cnpj: Cow<'a, str>,
+    #[serde(
+        rename = "CTe - Informações do Destinatário do CT-e: Nome de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
+    )]
+    pub destinatario_nome: Cow<'a, str>,
+    #[serde(
+        rename = "CTe - Local de Entrega constante na Nota Fiscal: Nome de Conhecimento : ConhecimentoValoresPrestacaoServico-Componentes"
+    )]
+    pub local_entrega: Cow<'a, str>,
+    #[serde(rename = "Descrição da Natureza da Operação : NF Item (Todos)")]
+    pub descricao_natureza: Cow<'a, str>,
+    #[serde(rename = "CTe - Observações Gerais de Conhecimento : ConhecimentoInformacaoNFe")]
+    pub observacoes_gerais: Cow<'a, str>,
+    #[serde(rename = "Descrição CFOP : NF Item (Todos)")]
+    pub descricao_cfop: Cow<'a, str>,
+}
+
+// --- 10 Colunas que a NF-e fornece para o CT-e ---
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct NfeMetadata<'a> {
+    #[serde(rename = "Nome do Contribuinte : NF Item (Todos)")]
+    pub contribuinte_nome: Cow<'a, str>,
+    #[serde(rename = "Nome do Participante : NF (Todos)")]
+    pub participante_nome: Cow<'a, str>,
+    #[serde(rename = "Observações : NF (Todos)")]
+    pub observacoes: Cow<'a, str>,
+    #[serde(rename = "Número da DI : NF Item (Todos)")]
+    pub numero_di: Cow<'a, str>,
+    #[serde(rename = "Descrição CFOP : NF Item (Todos)")]
+    // CFOP é comum, mas o valor pode ser diferente
+    pub descricao_cfop: Cow<'a, str>,
+    #[serde(rename = "Descrição da Mercadoria/Serviço : NF Item (Todos)")]
+    pub descricao_mercadoria: Cow<'a, str>,
+    #[serde(rename = "Código NCM : NF Item (Todos)")]
+    pub ncm: Cow<'a, str>,
+    #[serde(rename = "Descrição NCM : NF Item (Todos)")]
+    pub descricao_ncm: Cow<'a, str>,
+    #[serde(rename = "CST COFINS Descrição : NF Item (Todos)")]
+    pub cst_descricao_cofins: Cow<'a, str>,
+    #[serde(rename = "CST PIS Descrição : NF Item (Todos)")]
+    pub cst_descricao_pis: Cow<'a, str>,
+}
+
+impl<'a> NfeMetadata<'a> {
+    pub fn ncm_valido(&self) -> bool {
+        self.ncm.bytes().any(|b| matches!(b, b'1'..=b'9'))
     }
 }
 
