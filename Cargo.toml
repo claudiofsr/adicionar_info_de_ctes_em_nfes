@@ -1,0 +1,33 @@
+[package]
+name = "adicionar_info_de_ctes_em_nfes"
+authors = ["Claudio F S Rodrigues <claudiofsrodrigues@gmail.com>"]
+description = "Adicionar informações de CTes em NFes (e vice-versa)"
+homepage = "https://github.com/claudiofsr/adicionar_info_de_ctes_em_nfes"
+repository = "https://github.com/claudiofsr/adicionar_info_de_ctes_em_nfes"
+keywords = ["csv", "Sped", "correlações", "transitividade"]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92.0"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+csv = "1.4"
+rayon = "1.11"
+regex = "1.12"
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2.0"
+execution-time = "0.3"
+
+[profile.release]
+# https://doc.rust-lang.org/cargo/reference/profiles.html
+debug = true            # Debug info at all.
+strip = "symbols"       # Strip symbols from a binary.
+opt-level = 3           # All optimizations.
+overflow-checks = true  # Panic will occur on overflow.
+lto = true              # Enable link time optimization.
+codegen-units = 1       # Use a single codegen for size optimization.
+panic = "abort"         # Remove traceback information.
+incremental = true      # Save information to disk, improving re-compile times.
+
+[profile.dev]
+opt-level = 1           # Use slightly better optimizations.
